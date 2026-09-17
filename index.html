@@ -780,15 +780,8 @@ Terimakasih!! Sukses selalu`;
             });
         }
 
-        // EKSPOR PNG OPTIMAL & RINGAN
+        // EKSPOR PNG KHUSUS TABEL + RINGKASAN DATA (SEPERTI PDF)
         async function exportToPNG() {
-            const actionHeader = document.getElementById('actionHeader');
-            const actionCols = document.querySelectorAll('.action-col');
-            
-            // Sembunyikan elemen non-cetak
-            if(actionHeader) actionHeader.style.display = 'none';
-            actionCols.forEach(col => col.style.display = 'none');
-
             Swal.fire({
                 title: 'Memproses Gambar...',
                 text: 'Mohon tunggu sebentar',
@@ -797,19 +790,79 @@ Terimakasih!! Sukses selalu`;
             });
 
             try {
-                // Render langsung elemen utama
-                const canvas = await html2canvas(document.getElementById('dashboardSection'), {
-                    scale: 1.5,
-                    useCORS: true,
-                    allowTaint: true,
-                    logging: false
+                const totals = getTotals();
+                
+                // Buat container khusus cetak yang bersih & rapi
+                const printContainer = document.createElement('div');
+                printContainer.style.position = 'absolute';
+                printContainer.style.left = '-9999px';
+                printContainer.style.top = '0';
+                printContainer.style.width = '800px';
+                printContainer.style.backgroundColor = '#ffffff';
+                printContainer.style.padding = '25px';
+                printContainer.style.fontFamily = 'Arial, sans-serif';
+
+                let tableRowsHtml = '';
+                filteredTransactions.forEach((item, idx) => {
+                    tableRowsHtml += `
+                        <tr style="border-bottom: 1px solid #dee2e6;">
+                            <td style="padding: 8px; text-align: center;">${idx + 1}</td>
+                            <td style="padding: 8px;">${item.formattedDate}</td>
+                            <td style="padding: 8px;"><span style="padding: 3px 8px; border-radius: 4px; color: white; background-color: ${item.jenis === 'Pemasukan' ? '#198754' : '#dc3545'}; font-size: 11px;">${item.jenis}</span></td>
+                            <td style="padding: 8px;">${item.kategori}</td>
+                            <td style="padding: 8px; font-weight: bold;">Rp ${item.jumlah.toLocaleString('id-ID')}</td>
+                            <td style="padding: 8px;">${item.keterangan}</td>
+                        </tr>
+                    `;
                 });
 
-                // Menggunakan Blob untuk menghindari memory crash di HP
+                if (filteredTransactions.length === 0) {
+                    tableRowsHtml = `<tr><td colspan="6" style="padding: 15px; text-align: center; color: #6c757d;">Tidak ada transaksi pada rentang tanggal ini.</td></tr>`;
+                }
+
+                printContainer.innerHTML = `
+                    <div style="margin-bottom: 20px;">
+                        <h3 style="margin: 0; color: #0d6efd; font-weight: bold;">LAPORAN AG SNACK MAJU BERSAMA</h3>
+                        <p style="margin: 5px 0 15px 0; font-size: 12px; color: #6c757d;">Dicetak pada: ${new Date().toLocaleString('id-ID')}</p>
+                        
+                        <div style="background-color: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 12px; font-size: 13px;">
+                            <div style="margin-bottom: 4px;"><strong>Total Pemasukan:</strong> <span style="color: #198754; font-weight: bold;">Rp ${totals.pemasukan.toLocaleString('id-ID')}</span></div>
+                            <div style="margin-bottom: 4px;"><strong>Total Pengeluaran:</strong> <span style="color: #dc3545; font-weight: bold;">Rp ${totals.pengeluaran.toLocaleString('id-ID')}</span></div>
+                            <div><strong>Sisa Saldo Terakhir:</strong> <span style="color: #0d6efd; font-weight: bold;">Rp ${totals.saldo.toLocaleString('id-ID')}</span></div>
+                        </div>
+                    </div>
+
+                    <table style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: left;">
+                        <thead>
+                            <tr style="background-color: #f1f3f5; border-bottom: 2px solid #dee2e6;">
+                                <th style="padding: 8px; text-align: center; width: 40px;">No</th>
+                                <th style="padding: 8px;">Hari, Tanggal & Waktu</th>
+                                <th style="padding: 8px;">Jenis</th>
+                                <th style="padding: 8px;">Kategori</th>
+                                <th style="padding: 8px;">Jumlah</th>
+                                <th style="padding: 8px;">Keterangan</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tableRowsHtml}
+                        </tbody>
+                    </table>
+                `;
+
+                document.body.appendChild(printContainer);
+
+                const canvas = await html2canvas(printContainer, {
+                    scale: 2,
+                    useCORS: true,
+                    logging: false,
+                    backgroundColor: '#ffffff'
+                });
+
+                document.body.removeChild(printContainer);
+
                 canvas.toBlob((blob) => {
-                    if (!blob) {
-                        throw new Error('Gagal memproses file gambar.');
-                    }
+                    if (!blob) throw new Error('Gagal memproses gambar');
+                    
                     const url = URL.createObjectURL(blob);
                     const link = document.createElement('a');
                     link.download = `Laporan_AG_Snack_${new Date().toISOString().split('T')[0]}.png`;
@@ -822,7 +875,7 @@ Terimakasih!! Sukses selalu`;
                     Swal.fire({
                         icon: 'success',
                         title: 'Ekspor PNG Berhasil',
-                        text: 'Gambar PNG telah berhasil diunduh.',
+                        text: 'Tabel laporan telah disimpan sebagai gambar PNG.',
                         timer: 1500,
                         showConfirmButton: false
                     });
@@ -833,12 +886,8 @@ Terimakasih!! Sukses selalu`;
                 Swal.fire({
                     icon: 'error',
                     title: 'Gagal Ekspor Gambar',
-                    text: 'Terjadi kesalahan saat memproses gambar.'
+                    text: 'Terjadi kesalahan saat membuat gambar.'
                 });
-            } finally {
-                // Kembalikan tampilan semula
-                if(actionHeader) actionHeader.style.display = 'flex';
-                actionCols.forEach(col => col.style.display = '');
             }
         }
 
@@ -922,4 +971,3 @@ Terimakasih!! Sukses selalu`;
     </script>
 </body>
 </html>
-
